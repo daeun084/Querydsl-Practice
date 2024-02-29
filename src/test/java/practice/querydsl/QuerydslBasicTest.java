@@ -1,8 +1,11 @@
 package practice.querydsl;
 
 import com.querydsl.core.QueryResults;
+import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.PersistenceUnit;
 import jakarta.transaction.Transactional;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,8 +18,9 @@ import practice.querydsl.entity.Team;
 
 import java.util.List;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static practice.querydsl.entity.QMember.member;
+import static practice.querydsl.entity.QTeam.team;
 
 
 @SpringBootTest
@@ -54,7 +58,7 @@ public class QuerydslBasicTest {
         Member findMember = em.createQuery(qlString, Member.class)
                 .setParameter("username", "member1")
                         .getSingleResult();
-        Assertions.assertThat(findMember.getUsername()).isEqualTo("member1");
+        assertThat(findMember.getUsername()).isEqualTo("member1");
     }
 
     @Test
@@ -66,7 +70,7 @@ public class QuerydslBasicTest {
                 .from(member)
                 .where(member.username.eq("member1"))
                 .fetchOne();
-        Assertions.assertThat(findMember.getUsername()).isEqualTo("member1");
+        assertThat(findMember.getUsername()).isEqualTo("member1");
     }
 
     @Test
@@ -76,7 +80,7 @@ public class QuerydslBasicTest {
                 .where(member.username.eq("member1")
                         .and(member.age.eq(10))) //where 조건 추가
                 .fetchOne();
-        Assertions.assertThat(findMember.getUsername()).isEqualTo("member1");
+        assertThat(findMember.getUsername()).isEqualTo("member1");
     }
 
     @Test
@@ -88,7 +92,7 @@ public class QuerydslBasicTest {
                         ,member.age.eq(10)
                 ) //조건 여러 개를 ','으로 구분해 나열하면 AND로 연결됨
                 .fetchOne();
-        Assertions.assertThat(findMember.getUsername()).isEqualTo("member1");
+        assertThat(findMember.getUsername()).isEqualTo("member1");
     }
 
     @Test
@@ -172,6 +176,152 @@ public class QuerydslBasicTest {
         assertThat(results.getLimit()).isEqualTo(2);
         assertThat(results.getOffset()).isEqualTo(1);
         assertThat(results.getResults().size()).isEqualTo(2);
+    }
+
+    //집합
+    @Test
+    public void aggregation() throws Exception {
+        List<Tuple> result = queryFactory
+                .select(member.count(),
+                        member.age.sum(),
+                        member.age.avg(),
+                        member.age.max(),
+                        member.age.min())
+                .from(member)
+                .fetch();
+
+        Tuple tuple = result.get(0);
+        assertThat(tuple.get(member.count())).isEqualTo(4);
+        assertThat(tuple.get(member.age.sum())).isEqualTo(100);
+        assertThat(tuple.get(member.age.avg())).isEqualTo(25);
+        assertThat(tuple.get(member.age.max())).isEqualTo(40);
+        assertThat(tuple.get(member.age.min())).isEqualTo(10);
+    }
+
+    //팀의 이름, 각 팀의 나이 평균 구하기
+    @Test
+    public void group() throws Exception {
+        List<Tuple> result = queryFactory
+                .select(team.name, member.age.avg())
+                .from(member)
+                .join(member.team, team)
+                .groupBy(team.name)
+                .fetch();
+
+        Tuple teamA = result.get(0);
+        Tuple teamB = result.get(1);
+
+        assertThat(teamA.get(team.name)).isEqualTo("teamA");
+        assertThat(teamA.get(member.age.avg())).isEqualTo(15);
+        assertThat(teamB.get(team.name)).isEqualTo("teamB");
+        assertThat(teamB.get(member.age.avg())).isEqualTo(35);
+    }
+
+    //teamA에 소속된 모든 회원
+    @Test
+    public void join(){
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .join(member.team, team) //Qteam.team == team
+                .where(team.name.eq("teamA"))
+                .fetch();
+
+        assertThat(result)
+                .extracting("username")
+                .containsExactly("member1", "member2");
+    }
+
+    //회원의 이름이 팀 이름과 같은 회원 조회 (연관관계X)
+    @Test
+    public void theta_join() throws Exception {
+        em.persist(new Member("teamA"));
+        em.persist(new Member("teamB"));
+        List<Member> result = queryFactory
+                .select(member)
+                .from(member, team)
+                .where(member.username.eq(team.name))
+                .fetch();
+
+        assertThat(result)
+                .extracting("username")
+                .containsExactly("teamA", "teamB");
+    }
+
+
+    /**
+     * on절 사용
+     */
+
+    //회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인 / 회원은 모두 조회
+    @Test
+    public void join_on_filtering() throws Exception {
+        List<Tuple> result = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(member.team, team)
+                .on(team.name.eq("teamA")) //내부 조인에 사용시 where절과 동일
+                .fetch();
+
+        for (Tuple tuple : result) {
+            System.out.println("tuple = " + tuple);
+        }
+    }
+
+    //연관관계가 없는 엔티티 외부 조인
+    //회원이름 == 팀이름
+    @Test
+    public void join_on_no_relation() throws Exception {
+        em.persist(new Member("teamA"));
+        em.persist(new Member("teamB"));
+
+        List<Tuple> result = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(team)
+                .on(member.username.eq(team.name))
+                .fetch();
+
+        //기존 문법 : .leftJoin(member.team, team) -> id(fk)를 기준으로 조인
+        //leftJoin(team) -> on절의 내용만으로 필터링
+
+        for (Tuple tuple : result) {
+            System.out.println("t=" + tuple);
+        }
+    }
+
+     // fetch join
+    @PersistenceUnit
+    EntityManagerFactory emf;
+
+    @Test
+    public void fetchJoinNo(){
+        em.flush();
+        em.clear();
+
+        Member findMember = queryFactory
+                .selectFrom(member)
+                .where(member.username.eq("member1"))
+                .fetchOne();
+
+        //team이 이미 로딩된 엔티티인지, 초기화가 안된 엔티티인지 반환
+        boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+        assertThat(loaded).as("페치 조인 미적용").isFalse();
+    }
+
+    @Test
+    public void fetchJoinUse(){
+        em.flush();
+        em.clear();
+
+        Member findMember = queryFactory
+                .selectFrom(member)
+                .join(member.team, team).fetchJoin() //member을 조회할 때 연관된 team 한 번에 끌어옴
+                .where(member.username.eq("member1"))
+                .fetchOne();
+
+        //team이 이미 로딩된 엔티티인지, 초기화가 안된 엔티티인지 반환
+        boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+        assertThat(loaded).as("페치 조인 적용").isTrue();
     }
 
 }
