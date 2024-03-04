@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.expression.spel.ast.Projection;
 import practice.querydsl.dto.MemberDto;
+import practice.querydsl.dto.QMemberDto;
 import practice.querydsl.dto.UserDto;
 import practice.querydsl.entity.Member;
 import practice.querydsl.entity.QMember;
@@ -50,7 +51,7 @@ public class QuerydslAdvancedTest {
     }
 
     /**
-     * projection
+     * projection - Dto
      */
     @Test
     public void simpleProjection(){
@@ -153,5 +154,19 @@ public class QuerydslAdvancedTest {
         }
     }
 
+    /**
+     * projection - QueryProjection
+     */
+    @Test
+    public void findByQueryProjection(){
+        List<MemberDto> result = queryFactory
+                .select(new QMemberDto(member.username, member.age)) //생성자에 명시된 매개변수 사용
+                .from(member)
+                .fetch();
+
+        for(MemberDto m : result){
+            System.out.println("result = "+ m);
+        }
+    }
 
 }
