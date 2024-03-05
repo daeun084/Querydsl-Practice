@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.expression.spel.ast.Projection;
+import org.springframework.test.annotation.Commit;
 import practice.querydsl.dto.MemberDto;
 import practice.querydsl.dto.QMemberDto;
 import practice.querydsl.dto.UserDto;
@@ -229,6 +230,76 @@ public class QuerydslAdvancedTest {
     //상태 확인 등 동적으로 쿼리 짜기에 용이함
     private BooleanExpression allEq(String usernameCond, Integer ageCond){
         return usernameEq(usernameCond).and(ageEq(ageCond));
+    }
+
+    /**
+     * 벌크 연산
+     */
+
+    @Test
+    public void bulkUpdate(){
+        long count = queryFactory
+                .update(member)
+                .set(member.username, "비회원")
+                .where(member.age.lt(20)) //20살 이하면 이름 "비회원"으로 변경
+                .execute();
+        //DB와 영속성 컨텍스트의 상태가 달라짐
+        //bulk -> DB 상태만 바로 바꿈
+        //데이터를 DB에서 가져오면 영속성 컨텍스트에 다시 보관해야 함
+
+        em.flush();
+        em.clear();
+
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .fetch();
+        for(Member m : result){
+            System.out.println("result = "+ m);
+        }
+    }
+
+    @Test
+    public void bulkAdd(){
+        long count = queryFactory
+                .update(member)
+                .set(member.age, member.age.add(1))
+                .execute();
+    }
+
+    @Test
+    public void bulkDelete(){
+        long count = queryFactory
+                .delete(member)
+                .where(member.age.gt(10))
+                .execute();
+    }
+
+    /**
+     * sql function
+     */
+    @Test
+    public void sqlFunction(){
+        //member -> M 으로 변경
+        String result = queryFactory
+                .select(Expressions.stringTemplate("function('replace', {0}, {1}, {2})", member.username, "member", "M"))
+                .from(member)
+                .fetchFirst();
+        System.out.println("result = " + result);
+    }
+
+    @Test
+    public void sqlFunction2(){
+        //lower
+        List<String> result = queryFactory
+                .select(member.username)
+                .from(member)
+//                .where(member.username.eq(Expressions.stringTemplate("function('lower', {0})", member.username)))
+                .where(member.username.eq(member.username.lower()))
+                .fetch();
+
+        for(String s : result){
+            System.out.println("result = "+ s);
+        }
     }
 
 
