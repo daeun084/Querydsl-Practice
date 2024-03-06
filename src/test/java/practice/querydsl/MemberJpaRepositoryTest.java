@@ -12,6 +12,7 @@ import practice.querydsl.dto.MemberTeamDto;
 import practice.querydsl.entity.Member;
 import practice.querydsl.entity.Team;
 import practice.querydsl.repository.MemberJpaRepository;
+import practice.querydsl.repository.MemberRepository;
 
 import java.util.List;
 
@@ -23,6 +24,9 @@ public class MemberJpaRepositoryTest {
 
     @Autowired
     MemberJpaRepository memberJpaRepository;
+
+    @Autowired
+    MemberRepository memberRepository;
 
     @Test
     public void basicTest(){
@@ -76,7 +80,7 @@ public class MemberJpaRepositoryTest {
         condition.setAgeLoe(40);
         condition.setTeamName("teamB");
 
-        List<MemberTeamDto> result = memberJpaRepository.searchByBuilder(condition);
+        List<MemberTeamDto> result = memberRepository.search(condition);
         Assertions.assertThat(result).extracting("username").containsExactly("member4");
     }
 }
