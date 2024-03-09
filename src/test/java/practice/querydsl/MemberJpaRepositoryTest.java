@@ -12,6 +12,7 @@ import org.springframework.data.domain.PageRequest;
 import practice.querydsl.dto.MemberSearchCondition;
 import practice.querydsl.dto.MemberTeamDto;
 import practice.querydsl.entity.Member;
+import practice.querydsl.entity.QMember;
 import practice.querydsl.entity.Team;
 import practice.querydsl.repository.MemberJpaRepository;
 import practice.querydsl.repository.MemberRepository;
@@ -108,5 +109,20 @@ public class MemberJpaRepositoryTest {
 
         Assertions.assertThat(result.getSize()).isEqualTo(3);
         Assertions.assertThat(result.getContent()).extracting("username").containsExactly("member1", "member2", "member3");
+    }
+
+    //interface 지원
+    @Test
+    public void querydslPredicateExecutor(){
+        QMember qMember = QMember.member;
+        Iterable<Member> result = memberRepository.findAll(qMember.age.between(10, 40).and(qMember.username.eq("member1")));
+        for(Member m : result)
+            System.out.println("result = " + m);
+    }
+
+    //web 지원
+    @Test
+    public void (){
+
     }
 }
