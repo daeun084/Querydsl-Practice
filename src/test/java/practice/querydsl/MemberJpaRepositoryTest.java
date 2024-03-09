@@ -120,9 +120,5 @@ public class MemberJpaRepositoryTest {
             System.out.println("result = " + m);
     }
 
-    //web 지원
-    @Test
-    public void (){
 
-    }
 }
